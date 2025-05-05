@@ -1,0 +1,87 @@
+import os
+import openai
+from typing import List, Dict
+
+openai.api_key = os.getenv("OPENAI_API_KEY")  # set your key as an env var
+
+
+def ask_gpt(prompt: str, system_message: str = "You are an expert programmer.") -> str:
+    """Call GPT-4 to get a response."""
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.7
+    )
+    return response.choices[0].message["content"]
+
+
+def plan_project_structure(project_description: str) -> Dict:
+    prompt = f"""
+You are a project planner. Based on the following project prompt:
+"""
+{project_description}
+"""
+Create a plan for the project including:
+1. Project title
+2. Description
+3. Directory structure
+4. List of all files
+5. Purpose of each file
+6. Technologies used (e.g., Python, Flask, React)
+Return it in JSON format.
+"""
+    plan = ask_gpt(prompt)
+    return eval(plan)  # consider using `json.loads()` if API returns proper JSON
+
+
+def generate_code(file_path: str, file_purpose: str, project_description: str) -> str:
+    prompt = f"""
+Generate complete Python code for the file: {file_path}
+Purpose: {file_purpose}
+Project description: {project_description}
+DO NOT leave any TODOs or placeholders.
+Generate fully working, production-level code.
+"""
+    return ask_gpt(prompt)
+
+
+def create_project_files(plan: Dict, project_description: str):
+    for file_path in plan['files']:
+        content = generate_code(file_path, plan['files'][file_path], project_description)
+        full_path = os.path.join("generated_project", file_path)
+        os.makedirs(os.path.dirname(full_path), exist_ok=True)
+        with open(full_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+
+
+def show_how_to_run(plan: Dict):
+    prompt = f"""
+Given this project plan:
+{plan}
+Explain in clear steps how to install dependencies and run the project on a local machine.
+Include any necessary commands like pip install, python main.py, etc.
+"""
+    return ask_gpt(prompt)
+
+
+def main():
+    project_prompt = input("Describe the project you'd like to build: ")
+    print("\nPlanning project structure...")
+    plan = plan_project_structure(project_prompt)
+
+    print("\nProject Plan:")
+    print(plan)
+
+    print("\nGenerating files...")
+    create_project_files(plan, project_prompt)
+
+    print("\nInstructions to run:")
+    instructions = show_how_to_run(plan)
+    print(instructions)
+
+
+if __name__ == '__main__':
+    main()
